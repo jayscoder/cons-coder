@@ -1,0 +1,123 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go binary
+cons-coder
+/cons-coder
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+*.prof
+*.cover
+*.coverprofile
+coverage.txt
+coverage.html
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Dependency directories
+vendor/
+
+# Go module download cache
+go/pkg/mod/
+
+# Build directories
+build/
+dist/
+bin/
+target/
+
+# IDE specific files
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Editor backup files
+*.bak
+*.tmp
+*.temp
+*.orig
+
+# Generated output directories (keep structure but ignore contents)
+output/*
+!output/.gitkeep
+generated/
+gen/
+
+# Data directories (keep structure but ignore contents) 
+data/*
+!data/.gitkeep
+
+# Log files
+*.log
+logs/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Debug files
+debug
+__debug_bin
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Archives
+*.tar
+*.tar.gz
+*.zip
+*.rar
+*.7z
+
+# Temporary files
+tmp/
+temp/
+*.pid
+*.seed
+*.pid.lock
+
+# Documentation build
+docs/_build/
+docs/.vuepress/dist/
+
+# Test coverage
+htmlcov/
+.coverage
+.hypothesis/
+.pytest_cache/
+
+# Package files
+*.jar
+*.war
+*.nar
+*.ear
+
+# Node (if frontend is added later)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
