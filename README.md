@@ -746,9 +746,11 @@ public final class SuspendHandleSource {
 
 ### Swift
 
-Swift语言生成器对不同类型采用不同的代码结构：
-- **整数类型**：生成 `enum` 枚举，支持 `CaseIterable`, `Codable`, `Identifiable`, `CustomStringConvertible` 协议
-- **字符串类型**：生成 `struct` 结构体，包含静态常量
+Swift语言生成器统一使用 `enum` 枚举来生成所有常量组：
+- **整数类型**：生成 `enum` 枚举，原始值类型为 `Int`
+- **字符串类型**：生成 `enum` 枚举，原始值类型为 `String`
+- 所有枚举都支持 `CaseIterable`, `Codable`, `Identifiable`, `CustomStringConvertible` 协议
+- Swift 保留关键字（如 `default`）会自动使用反引号转义
 
 ```swift
 import Foundation
@@ -756,53 +758,53 @@ import Foundation
 /// 用户状态 - 用户相关（整数类型示例）
 public enum UserStatus: Int, CaseIterable, Codable, Identifiable, CustomStringConvertible {
     /// 正常
-    case NORMAL = 1
+    case normal = 1
     /// 已封禁
-    case SUSPENDED = 2
+    case suspended = 2
     /// 已删除
-    case DELETED = 3
+    case deleted = 3
     /// 未激活
-    case INACTIVE = 4
+    case inactive = 4
 
     public var id: Int { rawValue }
     
     public var description: String {
-        rawValue.description
+        format(lang: "en")
     }
 
     /// 获取中文标签
     public var label: String {
         switch self {
-        case .NORMAL: return "正常"
-        case .SUSPENDED: return "已封禁"
-        case .DELETED: return "已删除"
-        case .INACTIVE: return "未激活"
+        case .normal: return "正常"
+        case .suspended: return "已封禁"
+        case .deleted: return "已删除"
+        case .inactive: return "未激活"
         }
     }
 
     /// 获取详细描述
     public var detailDescription: String {
         switch self {
-        case .NORMAL: return "用户账号状态正常"
-        case .SUSPENDED: return "用户账号已被封禁"
-        case .DELETED: return "用户账号已被删除"
-        case .INACTIVE: return "用户账号未激活"
+        case .normal: return "用户账号状态正常"
+        case .suspended: return "用户账号已被封禁"
+        case .deleted: return "用户账号已被删除"
+        case .inactive: return "用户账号未激活"
         }
     }
 
     /// 根据语言获取标签
     /// - Parameter lang: 语言代码 ("zh", "en")
     /// - Returns: 格式化后的标签
-    public func format(lang: String = "zh") -> String {
+    public func format(lang: String = "en") -> String {
         switch lang {
         case "zh":
             return label
         case "en":
             switch self {
-            case .NORMAL: return "Normal"
-            case .SUSPENDED: return "Suspended"
-            case .DELETED: return "Deleted"
-            case .INACTIVE: return "Inactive"
+            case .normal: return "Normal"
+            case .suspended: return "Suspended"
+            case .deleted: return "Deleted"
+            case .inactive: return "Inactive"
             }
         default:
             return label
@@ -810,39 +812,47 @@ public enum UserStatus: Int, CaseIterable, Codable, Identifiable, CustomStringCo
     }
 
     /// 从字符串键名创建枚举
-    /// - Parameter key: 常量键名（大写）
+    /// - Parameter key: 常量键名
     /// - Returns: 枚举值，找不到时返回nil
     public static func fromString(_ key: String) -> Self? {
         switch key {
-        case "NORMAL": return .NORMAL
-        case "SUSPENDED": return .SUSPENDED
-        case "DELETED": return .DELETED
-        case "INACTIVE": return .INACTIVE
+        case "normal": return .normal
+        case "suspended": return .suspended
+        case "deleted": return .deleted
+        case "inactive": return .inactive
         default: return nil
         }
     }
 }
 
-/// 用户角色 - 用户相关（字符串类型示例）
-public struct UserRole {
-    /// 普通用户
-    public static let normalUser: String = "user"
-    /// 管理员
-    public static let admin: String = "admin"
-    /// 版主
-    public static let moderator: String = "moderator"
-    /// VIP用户
-    public static let vip: String = "vip"
+/// 管理员统计视图类型 - 系统管理（字符串类型示例，包含关键字转义）
+public enum AdminStatsViewType: String, CaseIterable, Codable, Identifiable, CustomStringConvertible {
+    /// 日期
+    case date = "date"
+    /// 时间
+    case datetime = "datetime"
+    /// 默认（注意：default 是 Swift 关键字，会自动转义）
+    case `default` = "default"
+    /// 动态
+    case dynamic = "dynamic"
     
-    // 私有初始化器，防止实例化
-    private init() {}
+    public var id: String { rawValue }
+    
+    public var description: String {
+        format(lang: "en")
+    }
 
-    /// 获取所有常量值
-    public static func getAllValues() -> [String] {
-        return [normalUser, admin, moderator, vip]
+    /// 获取中文标签
+    public var label: String {
+        switch self {
+        case .date: return "日期"
+        case .datetime: return "时间"
+        case .`default`: return "默认"
+        case .dynamic: return "动态"
+        }
     }
     
-    // ... 其他工具方法省略
+    // ... 其他方法省略
 }
 ```
 

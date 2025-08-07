@@ -21,6 +21,31 @@ func NewSwiftGenerator(config Config) *SwiftGenerator {
 	}
 }
 
+// Swift 保留关键字列表
+var swiftKeywords = map[string]bool{
+	"associatedtype": true, "class": true, "deinit": true, "enum": true,
+	"extension": true, "fileprivate": true, "func": true, "import": true,
+	"init": true, "inout": true, "internal": true, "let": true,
+	"open": true, "operator": true, "private": true, "protocol": true,
+	"public": true, "static": true, "struct": true, "subscript": true,
+	"typealias": true, "var": true, "break": true, "case": true,
+	"continue": true, "default": true, "defer": true, "do": true,
+	"else": true, "fallthrough": true, "for": true, "guard": true,
+	"if": true, "in": true, "repeat": true, "return": true,
+	"switch": true, "where": true, "while": true, "as": true,
+	"catch": true, "false": true, "is": true, "nil": true,
+	"rethrows": true, "super": true, "self": true, "Self": true,
+	"throw": true, "throws": true, "true": true, "try": true,
+}
+
+// escapeSwiftKeyword 如果是 Swift 关键字，使用反引号转义
+func escapeSwiftKeyword(name string) string {
+	if swiftKeywords[name] {
+		return "`" + name + "`"
+	}
+	return name
+}
+
 // Generate 生成Swift代码
 func (g *SwiftGenerator) Generate(constants *parser.ConstantsFile) error {
 	var code strings.Builder
@@ -83,6 +108,8 @@ func (g *SwiftGenerator) generateEnumGroup(group *parser.ConstantGroup, projectL
 	// 枚举case定义
 	for _, constant := range constants {
 		caseName := parser.ToSwiftName(constant.Name)
+		// 处理 Swift 关键字
+		caseName = escapeSwiftKeyword(caseName)
 		value := constant.Value
 		comment := constant.Label
 		if comment == "" {
@@ -118,6 +145,7 @@ func (g *SwiftGenerator) generateEnumGroup(group *parser.ConstantGroup, projectL
 	code.WriteString("        switch self {\n")
 	for _, constant := range constants {
 		caseName := parser.ToSwiftName(constant.Name)
+		caseName = escapeSwiftKeyword(caseName)
 		label := constant.Label
 		if label == "" {
 			label = constant.Name
@@ -134,6 +162,7 @@ func (g *SwiftGenerator) generateEnumGroup(group *parser.ConstantGroup, projectL
 	code.WriteString("        switch self {\n")
 	for _, constant := range constants {
 		caseName := parser.ToSwiftName(constant.Name)
+		caseName = escapeSwiftKeyword(caseName)
 		desc := constant.Desc
 		if desc == "" {
 			desc = constant.Label
@@ -156,6 +185,7 @@ func (g *SwiftGenerator) generateEnumGroup(group *parser.ConstantGroup, projectL
 	code.WriteString("            switch self {\n")
 	for _, constant := range constants {
 		caseName := parser.ToSwiftName(constant.Name)
+		caseName = escapeSwiftKeyword(caseName)
 		// 简单的英文转换
 		enLabel := strings.ReplaceAll(constant.Name, "_", " ")
 		enLabel = strings.Title(strings.ToLower(enLabel))
@@ -176,6 +206,7 @@ func (g *SwiftGenerator) generateEnumGroup(group *parser.ConstantGroup, projectL
 	code.WriteString("        switch key {\n")
 	for _, constant := range constants {
 		caseName := parser.ToSwiftName(constant.Name)
+		caseName = escapeSwiftKeyword(caseName)
 		// 对于fromString，仍使用原始的键名（可能是snake_case等）
 		originalKey := constant.Name
 		code.WriteString(fmt.Sprintf("        case \"%s\": return .%s\n", originalKey, caseName))
