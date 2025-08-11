@@ -70,7 +70,7 @@ func ParseXMLFile(filePath string) (*ConstantsFile, error) {
 	for _, group := range constants.Groups {
 		// 设置组名（从XML标签名提取）
 		group.Name = group.XMLName.Local
-		
+
 		// 处理组内的常量
 		for _, constant := range group.Constants {
 			// 设置常量名（从XML标签名提取）
@@ -115,11 +115,7 @@ func ToJavaConstantName(name string) string {
 func ToSwiftName(name string) string {
 	parts := strings.Split(name, "_")
 	for i, part := range parts {
-		if i == 0 {
-			parts[i] = strings.ToLower(part)
-		} else {
-			parts[i] = strings.Title(strings.ToLower(part))
-		}
+		parts[i] = strings.Title(strings.ToLower(part))
 	}
 	return strings.Join(parts, "")
 }
