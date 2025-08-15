@@ -13,6 +13,7 @@ type Config struct {
 	Language    string // 目标语言
 	OutputDir   string // 输出目录
 	PackageName string // 包名
+	HeaderComment string // 头部注释
 	Version     string // 生成器版本
 }
 
@@ -98,6 +99,18 @@ func (g *BaseGenerator) GetFileHeader(constants *parser.ConstantsFile) string {
 	}
 
 	header := fmt.Sprintf("%s\n", commentStart)
+	
+	// 添加自定义头部注释
+	if g.Config.HeaderComment != "" {
+		if commentLine != "" {
+			header += fmt.Sprintf("%s%s\n", commentLine, g.Config.HeaderComment)
+			header += fmt.Sprintf("%s\n", commentLine)
+		} else {
+			header += fmt.Sprintf("%s\n", g.Config.HeaderComment)
+			header += "\n"
+		}
+	}
+	
 	if commentLine != "" {
 		header += fmt.Sprintf("%s%s\n", commentLine, constants.Label)
 		header += fmt.Sprintf("%s\n", commentLine)
@@ -107,7 +120,7 @@ func (g *BaseGenerator) GetFileHeader(constants *parser.ConstantsFile) string {
 		header += fmt.Sprintf("%s生成工具: cons-coder v%s\n", commentLine, g.Config.Version)
 	} else {
 		header += fmt.Sprintf("%s\n", constants.Label)
-		header += fmt.Sprintf("\n")
+		header += "\n"
 		header += fmt.Sprintf("源文件: %s\n", filepath.Base(constants.FilePath))
 		header += fmt.Sprintf("最后修改: %s\n", FormatGenerationTime(constants.LastModified))
 		header += fmt.Sprintf("生成时间: %s\n", FormatGenerationTime(time.Now()))

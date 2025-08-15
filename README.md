@@ -1,4 +1,4 @@
-# 常量代码生成器 (Constants Code Generator)
+# 常量代码生成器 (Constants Code Generator CLI)
 
 一个强大的多语言常量代码生成工具，支持从XML配置文件生成Python、Go、Java、Swift、Kotlin等语言的常量定义代码。
 

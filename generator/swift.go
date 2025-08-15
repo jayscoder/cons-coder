@@ -36,11 +36,12 @@ var swiftKeywords = map[string]bool{
 	"catch": true, "false": true, "is": true, "nil": true,
 	"rethrows": true, "super": true, "self": true, "Self": true,
 	"throw": true, "throws": true, "true": true, "try": true,
+	"type": true,
 }
 
 // escapeSwiftKeyword 如果是 Swift 关键字，使用反引号转义
 func escapeSwiftKeyword(name string) string {
-	if swiftKeywords[name] {
+	if swiftKeywords[strings.ToLower(name)] {
 		return "`" + name + "`"
 	}
 	return name

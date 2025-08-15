@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Constant 表示单个常量定义
@@ -89,9 +92,10 @@ func ParseXMLFile(filePath string) (*ConstantsFile, error) {
 
 // ToGoName 将下划线命名转换为Go风格的驼峰命名
 func ToGoName(name string) string {
+	caser := cases.Title(language.English)
 	parts := strings.Split(name, "_")
 	for i, part := range parts {
-		parts[i] = strings.Title(strings.ToLower(part))
+		parts[i] = caser.String(strings.ToLower(part))
 	}
 	return strings.Join(parts, "")
 }
@@ -114,8 +118,9 @@ func ToJavaConstantName(name string) string {
 // ToSwiftName 将下划线命名转换为Swift风格的驼峰命名
 func ToSwiftName(name string) string {
 	parts := strings.Split(name, "_")
+	caser := cases.Title(language.English)
 	for i, part := range parts {
-		parts[i] = strings.Title(strings.ToLower(part))
+		parts[i] = caser.String(strings.ToLower(part))
 	}
 	return strings.Join(parts, "")
 }
@@ -241,13 +246,14 @@ func GetJavaScriptType(xmlType string) string {
 
 // FormatValue 根据类型格式化值
 func FormatValue(value string, xmlType string, lang string) string {
+	caser := cases.Title(language.English)
 	switch lang {
 	case "python":
 		if xmlType == "string" {
 			return fmt.Sprintf(`"%s"`, value)
 		}
 		if xmlType == "bool" {
-			return strings.Title(strings.ToLower(value))
+			return caser.String(strings.ToLower(value))
 		}
 		return value
 	case "go":
