@@ -10,11 +10,11 @@ import (
 
 // Config 生成器配置
 type Config struct {
-	Language    string // 目标语言
-	OutputDir   string // 输出目录
-	PackageName string // 包名
+	Language      string // 目标语言
+	OutputDir     string // 输出目录
+	PackageName   string // 包名
 	HeaderComment string // 头部注释
-	Version     string // 生成器版本
+	Version       string // 生成器版本
 }
 
 // Generator 代码生成器接口
@@ -86,7 +86,7 @@ func FormatGenerationTime(t time.Time) string {
 // GetFileHeader 获取文件头部注释
 func (g *BaseGenerator) GetFileHeader(constants *parser.ConstantsFile) string {
 	var commentStart, commentLine, commentEnd string
-	
+
 	switch g.Config.Language {
 	case "python":
 		commentStart = `"""`
@@ -99,7 +99,7 @@ func (g *BaseGenerator) GetFileHeader(constants *parser.ConstantsFile) string {
 	}
 
 	header := fmt.Sprintf("%s\n", commentStart)
-	
+
 	// 添加自定义头部注释
 	if g.Config.HeaderComment != "" {
 		if commentLine != "" {
@@ -110,7 +110,7 @@ func (g *BaseGenerator) GetFileHeader(constants *parser.ConstantsFile) string {
 			header += "\n"
 		}
 	}
-	
+
 	if commentLine != "" {
 		header += fmt.Sprintf("%s%s\n", commentLine, constants.Label)
 		header += fmt.Sprintf("%s\n", commentLine)
@@ -127,6 +127,6 @@ func (g *BaseGenerator) GetFileHeader(constants *parser.ConstantsFile) string {
 		header += fmt.Sprintf("生成工具: cons-coder v%s\n", g.Config.Version)
 	}
 	header += fmt.Sprintf("%s\n", commentEnd)
-	
+
 	return header
 }

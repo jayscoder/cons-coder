@@ -25,6 +25,10 @@ func NewGoGenerator(config Config) *GoGenerator {
 func (g *GoGenerator) Generate(constants *parser.ConstantsFile) error {
 	var code strings.Builder
 	
+	// 文件头注释 - 必须在package声明之前
+	code.WriteString(g.GetFileHeader(constants))
+	code.WriteString("\n")
+	
 	// 包声明
 	code.WriteString(fmt.Sprintf("package %s\n\n", g.Config.PackageName))
 	
@@ -32,10 +36,6 @@ func (g *GoGenerator) Generate(constants *parser.ConstantsFile) error {
 	code.WriteString("import (\n")
 	code.WriteString("\t\"fmt\"\n")
 	code.WriteString(")\n\n")
-	
-	// 文件头注释
-	code.WriteString(g.GetFileHeader(constants))
-	code.WriteString("\n")
 	
 	// 生成每个常量组
 	for _, group := range constants.Groups {

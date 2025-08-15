@@ -26,13 +26,13 @@ var (
 
 func main() {
 	var (
-		dir         string
-		output      string
-		lang        string
-		pkgName     string
+		dir           string
+		output        string
+		lang          string
+		pkgName       string
 		headerComment string
-		help        bool
-		showVersion bool
+		help          bool
+		showVersion   bool
 	)
 
 	flag.StringVarP(&dir, "dir", "d", "", "XML配置文件目录 (必填)")
@@ -126,11 +126,11 @@ func main() {
 
 	// 生成代码
 	config := generator.Config{
-		Language:    lang,
-		OutputDir:   output,
-		PackageName: pkgName,
+		Language:      lang,
+		OutputDir:     output,
+		PackageName:   pkgName,
 		HeaderComment: headerComment,
-		Version:     Version,
+		Version:       Version,
 	}
 
 	gen := generator.New(config)
@@ -180,7 +180,7 @@ func printHelp() {
 
 func printVersion() {
 	fmt.Printf("cons-coder version %s\n", Version)
-	
+
 	// Show detailed version info if available
 	if BuildTime != "unknown" || GitCommit != "unknown" {
 		fmt.Println("\nBuild Information:")
