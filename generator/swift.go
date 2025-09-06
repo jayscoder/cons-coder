@@ -120,7 +120,7 @@ func (g *SwiftGenerator) generateGroup(group *parser.ConstantGroup, projectLabel
 }
 
 // generateEnumGroup 生成enum形式的常量组（适用于整数和字符串类型）
-func (g *SwiftGenerator) generateEnumGroup(group *parser.ConstantGroup, projectLabel string) string {
+func (g *SwiftGenerator) generateEnumGroup(group *parser.ConstantGroup, _ string) string {
 	var code strings.Builder
 
 	enumName := parser.ToJavaName(group.Name)
@@ -132,8 +132,7 @@ func (g *SwiftGenerator) generateEnumGroup(group *parser.ConstantGroup, projectL
 		rawType = "Int"
 	}
 
-	// 枚举注释
-	code.WriteString(fmt.Sprintf("/// %s - %s\n", group.Label, projectLabel))
+	// 枚举定义
 	code.WriteString(fmt.Sprintf("public enum %s: %s, CaseIterable, Codable, Identifiable, CustomStringConvertible {\n", enumName, rawType))
 
 	// 按字母顺序排序常量
@@ -219,13 +218,12 @@ func (g *SwiftGenerator) generateEnumGroup(group *parser.ConstantGroup, projectL
 }
 
 // generateStructGroup 生成struct形式的常量组（适用于字符串类型）
-func (g *SwiftGenerator) generateStructGroup(group *parser.ConstantGroup, projectLabel string) string {
+func (g *SwiftGenerator) generateStructGroup(group *parser.ConstantGroup, _ string) string {
 	var code strings.Builder
 
 	structName := parser.ToJavaName(group.Name)
 
-	// 结构体注释
-	code.WriteString(fmt.Sprintf("/// %s - %s\n", group.Label, projectLabel))
+	// 结构体定义
 	code.WriteString(fmt.Sprintf("public struct %s {\n", structName))
 
 	// 按字母顺序排序常量

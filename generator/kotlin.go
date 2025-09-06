@@ -83,15 +83,12 @@ func (g *KotlinGenerator) generateConstGroup(group *parser.ConstantGroup, projec
 }
 
 // generateObject 生成常量组对象
-func (g *KotlinGenerator) generateObject(group *parser.ConstantGroup, projectLabel string) string {
+func (g *KotlinGenerator) generateObject(group *parser.ConstantGroup, _ string) string {
 	var code strings.Builder
 	
 	objectName := parser.ToKotlinName(group.Name)
 	
-	// 对象注释
-	code.WriteString("/**\n")
-	code.WriteString(fmt.Sprintf(" * %s - %s\n", group.Label, projectLabel))
-	code.WriteString(" */\n")
+	// 对象定义
 	code.WriteString(fmt.Sprintf("object %s {\n", objectName))
 	
 	// 按字母顺序排序常量

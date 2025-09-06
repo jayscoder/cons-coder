@@ -81,18 +81,14 @@ func (g *PythonGenerator) generateConstGroup(group *parser.ConstantGroup, projec
 }
 
 // generateGroupClass 生成常量组类
-func (g *PythonGenerator) generateGroupClass(group *parser.ConstantGroup, projectLabel string) string {
+func (g *PythonGenerator) generateGroupClass(group *parser.ConstantGroup, _ string) string {
 	var code strings.Builder
 
 	className := parser.ToGoName(group.Name)
 
-	// 类定义和文档字符串
+	// 类定义
 	code.WriteString(fmt.Sprintf("class %s:\n", className))
-	code.WriteString(fmt.Sprintf(`    """%s - %s`, group.Label, projectLabel))
-	code.WriteString("\n    \n")
-	code.WriteString(fmt.Sprintf("    项目: %s\n", projectLabel))
-	code.WriteString(fmt.Sprintf("    常量组: %s\n", group.Label))
-	code.WriteString(`    """`)
+	code.WriteString(fmt.Sprintf(`    """%s"""`, group.Label))
 	code.WriteString("\n\n")
 
 	// 按字母顺序排序常量

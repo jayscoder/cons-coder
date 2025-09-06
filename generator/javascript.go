@@ -105,15 +105,12 @@ func (g *JavaScriptGenerator) generateConstGroup(group *parser.ConstantGroup, pr
 }
 
 // generateGroupClass 生成常量组类
-func (g *JavaScriptGenerator) generateGroupClass(group *parser.ConstantGroup, projectLabel string) string {
+func (g *JavaScriptGenerator) generateGroupClass(group *parser.ConstantGroup, _ string) string {
 	var code strings.Builder
 	
 	className := parser.ToJavaName(group.Name)
 	
-	// 类注释
-	code.WriteString("/**\n")
-	code.WriteString(fmt.Sprintf(" * %s - %s\n", group.Label, projectLabel))
-	code.WriteString(" */\n")
+	// 生成类定义
 	code.WriteString(fmt.Sprintf("class %s {\n", className))
 	
 	// 静态常量定义

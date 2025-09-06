@@ -59,13 +59,10 @@ func (g *GoGenerator) Generate(constants *parser.ConstantsFile) error {
 }
 
 // generateConstGroup 生成const模式的常量组
-func (g *GoGenerator) generateConstGroup(group *parser.ConstantGroup, projectLabel string) string {
+func (g *GoGenerator) generateConstGroup(group *parser.ConstantGroup, _ string) string {
 	var code strings.Builder
 	
-	groupName := parser.ToGoName(group.Name)
-	
-	// 生成注释
-	code.WriteString(fmt.Sprintf("// %s %s - %s\n", groupName, group.Label, projectLabel))
+	// 生成常量组
 	code.WriteString("const (\n")
 	
 	// 按字母顺序排序常量
@@ -88,14 +85,12 @@ func (g *GoGenerator) generateConstGroup(group *parser.ConstantGroup, projectLab
 }
 
 // generateGroup 生成常量组
-func (g *GoGenerator) generateGroup(group *parser.ConstantGroup, projectLabel string) string {
+func (g *GoGenerator) generateGroup(group *parser.ConstantGroup, _ string) string {
 	var code strings.Builder
 	
-	groupName := parser.ToGoName(group.Name)
 	structName := toCamelCase(group.Name) + "Cons"
 	
 	// 生成结构体类型定义
-	code.WriteString(fmt.Sprintf("// %s %s - %s\n", groupName, group.Label, projectLabel))
 	code.WriteString(fmt.Sprintf("type %s struct {\n", structName))
 	
 	// 按字母顺序排序常量
@@ -115,6 +110,7 @@ func (g *GoGenerator) generateGroup(group *parser.ConstantGroup, projectLabel st
 	code.WriteString("}\n\n")
 	
 	// 生成常量实例
+	groupName := parser.ToGoName(group.Name)
 	code.WriteString(fmt.Sprintf("// %s 常量实例\n", groupName))
 	code.WriteString(fmt.Sprintf("var %s = %s{\n", groupName, structName))
 	for _, constant := range constants {

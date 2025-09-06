@@ -115,15 +115,12 @@ func (g *JavaGenerator) generateConstGroup(group *parser.ConstantGroup, projectL
 }
 
 // generateGroupClass 生成常量组内部类
-func (g *JavaGenerator) generateGroupClass(group *parser.ConstantGroup, projectLabel string) string {
+func (g *JavaGenerator) generateGroupClass(group *parser.ConstantGroup, _ string) string {
 	var code strings.Builder
 	
 	className := parser.ToJavaName(group.Name)
 	
-	// 类注释
-	code.WriteString(fmt.Sprintf("\t/**\n"))
-	code.WriteString(fmt.Sprintf("\t * %s - %s\n", group.Label, projectLabel))
-	code.WriteString(fmt.Sprintf("\t */\n"))
+	// 类定义
 	code.WriteString(fmt.Sprintf("\tpublic static final class %s {\n", className))
 	
 	// 按字母顺序排序常量
