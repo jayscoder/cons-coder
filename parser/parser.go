@@ -1,10 +1,10 @@
 package parser
 
 import (
-	"encoding/xml"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,27 +14,17 @@ import (
 
 // Constant 表示单个常量定义
 type Constant struct {
-	XMLName xml.Name `xml:""`
-	Name    string   // 从XML标签名提取
-	Type    string   `xml:"type,attr"`
-	Label   string   `xml:"label,attr"`
-	Desc    string   `xml:"desc,attr"`
-	Value   string   `xml:"value,attr"`
+	Name  string      // 常量名称
+	Type  string      // 数据类型 (int, string)
+	Label string      // 中文标签/注释
+	Value interface{} // 常量值
 }
 
 // ConstantGroup 表示一组常量
 type ConstantGroup struct {
-	XMLName   xml.Name    `xml:""`
-	Name      string      // 从XML标签名提取
-	Label     string      `xml:"label,attr"`
-	Constants []*Constant `xml:",any"`
-}
-
-// Constants 表示XML根元素
-type Constants struct {
-	XMLName xml.Name         `xml:"constants"`
-	Label   string           `xml:"label,attr"`
-	Groups  []*ConstantGroup `xml:",any"`
+	Name      string      // 组名称
+	Label     string      // 组描述
+	Constants []*Constant // 常量列表
 }
 
 // ConstantsFile 表示解析后的完整文件信息
@@ -46,18 +36,12 @@ type ConstantsFile struct {
 	LastModified time.Time        // 文件最后修改时间
 }
 
-// ParseXMLFile 解析单个XML文件
-func ParseXMLFile(filePath string) (*ConstantsFile, error) {
+// ParseYAMLFile 解析单个YAML文件
+func ParseYAMLFile(filePath string) (*ConstantsFile, error) {
 	// 读取文件内容
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("读取文件失败: %w", err)
-	}
-
-	// 解析XML
-	var constants Constants
-	if err := xml.Unmarshal(data, &constants); err != nil {
-		return nil, fmt.Errorf("解析XML失败: %w", err)
 	}
 
 	// 获取文件信息
@@ -69,24 +53,105 @@ func ParseXMLFile(filePath string) (*ConstantsFile, error) {
 	// 提取文件名（不含扩展名）
 	fileName := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
 
-	// 处理常量组和常量名称
-	for _, group := range constants.Groups {
-		// 设置组名（从XML标签名提取）
-		group.Name = group.XMLName.Local
+	// 解析YAML并提取注释
+	label, constants, err := parseYAMLWithComments(data)
+	if err != nil {
+		return nil, fmt.Errorf("解析YAML失败: %w", err)
+	}
 
-		// 处理组内的常量
-		for _, constant := range group.Constants {
-			// 设置常量名（从XML标签名提取）
-			constant.Name = constant.XMLName.Local
-		}
+	// 创建常量组
+	group := &ConstantGroup{
+		Name:      fileName,
+		Label:     label,
+		Constants: constants,
 	}
 
 	return &ConstantsFile{
 		FileName:     fileName,
 		FilePath:     filePath,
-		Label:        constants.Label,
-		Groups:       constants.Groups,
+		Label:        label,
+		Groups:       []*ConstantGroup{group},
 		LastModified: fileInfo.ModTime(),
+	}, nil
+}
+
+// parseYAMLWithComments 解析YAML文件并提取注释
+func parseYAMLWithComments(data []byte) (string, []*Constant, error) {
+	lines := strings.Split(string(data), "\n")
+	
+	var label string
+	var constants []*Constant
+	
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		
+		// 跳过空行
+		if line == "" {
+			continue
+		}
+		
+		// 提取文件标签（第一行注释）
+		if strings.HasPrefix(line, "#") && label == "" {
+			label = strings.TrimSpace(strings.TrimPrefix(line, "#"))
+			continue
+		}
+		
+		// 解析常量行
+		if !strings.HasPrefix(line, "#") && strings.Contains(line, ":") {
+			constant, err := parseConstantLine(line)
+			if err != nil {
+				continue // 跳过无效行
+			}
+			constants = append(constants, constant)
+		}
+	}
+	
+	return label, constants, nil
+}
+
+// parseConstantLine 解析单行常量定义
+func parseConstantLine(line string) (*Constant, error) {
+	// 分割键值对和注释
+	parts := strings.Split(line, "#")
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("缺少注释")
+	}
+	
+	// 解析键值对
+	kvPart := strings.TrimSpace(parts[0])
+	commentPart := strings.TrimSpace(parts[1])
+	
+	// 分割键和值
+	kvParts := strings.SplitN(kvPart, ":", 2)
+	if len(kvParts) != 2 {
+		return nil, fmt.Errorf("无效的键值对格式")
+	}
+	
+	name := strings.TrimSpace(kvParts[0])
+	valueStr := strings.TrimSpace(kvParts[1])
+	
+	// 移除引号
+	valueStr = strings.Trim(valueStr, `"'`)
+	
+	// 推断类型和解析值
+	var value interface{}
+	var dataType string
+	
+	// 尝试解析为整数
+	if intVal, err := strconv.Atoi(valueStr); err == nil {
+		value = intVal
+		dataType = "int"
+	} else {
+		// 默认为字符串
+		value = valueStr
+		dataType = "string"
+	}
+	
+	return &Constant{
+		Name:  name,
+		Type:  dataType,
+		Label: commentPart,
+		Value: value,
 	}, nil
 }
 
@@ -146,8 +211,8 @@ func ToJavaScriptName(name string) string {
 }
 
 // GetGoType 获取Go语言对应的类型
-func GetGoType(xmlType string) string {
-	switch xmlType {
+func GetGoType(dataType string) string {
+	switch dataType {
 	case "int":
 		return "int"
 	case "string":
@@ -162,8 +227,8 @@ func GetGoType(xmlType string) string {
 }
 
 // GetPythonType 获取Python语言对应的类型
-func GetPythonType(xmlType string) string {
-	switch xmlType {
+func GetPythonType(dataType string) string {
+	switch dataType {
 	case "int":
 		return "int"
 	case "string":
@@ -178,8 +243,8 @@ func GetPythonType(xmlType string) string {
 }
 
 // GetJavaType 获取Java语言对应的类型
-func GetJavaType(xmlType string) string {
-	switch xmlType {
+func GetJavaType(dataType string) string {
+	switch dataType {
 	case "int":
 		return "int"
 	case "string":
@@ -194,8 +259,8 @@ func GetJavaType(xmlType string) string {
 }
 
 // GetSwiftType 获取Swift语言对应的类型
-func GetSwiftType(xmlType string) string {
-	switch xmlType {
+func GetSwiftType(dataType string) string {
+	switch dataType {
 	case "int":
 		return "Int"
 	case "string":
@@ -210,8 +275,8 @@ func GetSwiftType(xmlType string) string {
 }
 
 // GetKotlinType 获取Kotlin语言对应的类型
-func GetKotlinType(xmlType string) string {
-	switch xmlType {
+func GetKotlinType(dataType string) string {
+	switch dataType {
 	case "int":
 		return "Int"
 	case "string":
@@ -226,8 +291,8 @@ func GetKotlinType(xmlType string) string {
 }
 
 // GetTypeScriptType 获取TypeScript语言对应的类型
-func GetTypeScriptType(xmlType string) string {
-	switch xmlType {
+func GetTypeScriptType(dataType string) string {
+	switch dataType {
 	case "int", "float":
 		return "number"
 	case "string":
@@ -240,43 +305,45 @@ func GetTypeScriptType(xmlType string) string {
 }
 
 // GetJavaScriptType 获取JavaScript语言对应的类型（用于JSDoc）
-func GetJavaScriptType(xmlType string) string {
-	return GetTypeScriptType(xmlType)
+func GetJavaScriptType(dataType string) string {
+	return GetTypeScriptType(dataType)
 }
 
 // FormatValue 根据类型格式化值
-func FormatValue(value string, xmlType string, lang string) string {
+func FormatValue(value interface{}, dataType string, lang string) string {
 	caser := cases.Title(language.English)
+	valueStr := fmt.Sprintf("%v", value)
+	
 	switch lang {
 	case "python":
-		if xmlType == "string" {
-			return fmt.Sprintf(`"%s"`, value)
+		if dataType == "string" {
+			return fmt.Sprintf(`"%s"`, valueStr)
 		}
-		if xmlType == "bool" {
-			return caser.String(strings.ToLower(value))
+		if dataType == "bool" {
+			return caser.String(strings.ToLower(valueStr))
 		}
-		return value
+		return valueStr
 	case "go":
-		if xmlType == "string" {
-			return fmt.Sprintf(`"%s"`, value)
+		if dataType == "string" {
+			return fmt.Sprintf(`"%s"`, valueStr)
 		}
-		return value
+		return valueStr
 	case "java", "kotlin":
-		if xmlType == "string" {
-			return fmt.Sprintf(`"%s"`, value)
+		if dataType == "string" {
+			return fmt.Sprintf(`"%s"`, valueStr)
 		}
-		return value
+		return valueStr
 	case "swift":
-		if xmlType == "string" {
-			return fmt.Sprintf(`"%s"`, value)
+		if dataType == "string" {
+			return fmt.Sprintf(`"%s"`, valueStr)
 		}
-		return value
+		return valueStr
 	case "typescript", "javascript":
-		if xmlType == "string" {
-			return fmt.Sprintf(`'%s'`, value)
+		if dataType == "string" {
+			return fmt.Sprintf(`'%s'`, valueStr)
 		}
-		return value
+		return valueStr
 	default:
-		return value
+		return valueStr
 	}
 }

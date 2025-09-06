@@ -58,17 +58,54 @@ func (g *SwiftGenerator) Generate(constants *parser.ConstantsFile) error {
 	code.WriteString(g.GetFileHeader(constants))
 	code.WriteString("\n")
 
-	// 生成每个常量组
-	for i, group := range constants.Groups {
-		if i > 0 {
-			code.WriteString("\n")
+	if g.Config.Mode == "const" {
+		// const模式 - 生成简单常量
+		for i, group := range constants.Groups {
+			if i > 0 {
+				code.WriteString("\n")
+			}
+			code.WriteString(g.generateConstGroup(group, constants.Label))
 		}
-		code.WriteString(g.generateGroup(group, constants.Label))
+	} else {
+		// class模式
+		// 生成每个常量组
+		for i, group := range constants.Groups {
+			if i > 0 {
+				code.WriteString("\n")
+			}
+			code.WriteString(g.generateGroup(group, constants.Label))
+		}
 	}
 
 	// 写入文件
 	outputPath := g.GetOutputFilePath(constants.FileName)
 	return os.WriteFile(outputPath, []byte(code.String()), 0644)
+}
+
+// generateConstGroup 生成const模式的常量组
+func (g *SwiftGenerator) generateConstGroup(group *parser.ConstantGroup, projectLabel string) string {
+	var code strings.Builder
+	
+	// 生成注释
+	code.WriteString(fmt.Sprintf("// %s %s - %s\n", group.Name, group.Label, projectLabel))
+	
+	// 按字母顺序排序常量
+	constants := make([]*parser.Constant, len(group.Constants))
+	copy(constants, group.Constants)
+	sort.Slice(constants, func(i, j int) bool {
+		return parser.ToSwiftName(constants[i].Name) < parser.ToSwiftName(constants[j].Name)
+	})
+	
+	// 生成常量定义
+	for _, constant := range constants {
+		constName := fmt.Sprintf("%s_%s", strings.ToUpper(group.Name), strings.ToUpper(constant.Name))
+		valueType := parser.GetSwiftType(constant.Type)
+		value := parser.FormatValue(constant.Value, constant.Type, "swift")
+		comment := constant.Label
+		code.WriteString(fmt.Sprintf("public let %s: %s = %s // %s\n", constName, valueType, value, comment))
+	}
+	
+	return code.String()
 }
 
 // generateGroup 生成常量组
@@ -114,7 +151,7 @@ func (g *SwiftGenerator) generateEnumGroup(group *parser.ConstantGroup, projectL
 		value := constant.Value
 		comment := constant.Label
 		if comment == "" {
-			comment = constant.Desc
+			comment = constant.Label
 		}
 
 		code.WriteString(fmt.Sprintf("    /// %s\n", comment))
@@ -136,7 +173,7 @@ func (g *SwiftGenerator) generateEnumGroup(group *parser.ConstantGroup, projectL
 	// 添加CustomStringConvertible协议的实现
 	code.WriteString("    \n")
 	code.WriteString("    public var description: String {\n")
-	code.WriteString("        format(lang: \"en\")\n")
+	code.WriteString("        label\n")
 	code.WriteString("    }\n")
 
 	// 生成label属性
@@ -156,47 +193,7 @@ func (g *SwiftGenerator) generateEnumGroup(group *parser.ConstantGroup, projectL
 	code.WriteString("        }\n")
 	code.WriteString("    }\n")
 
-	// 生成详细描述属性
-	code.WriteString("\n")
-	code.WriteString("    /// 获取详细描述\n")
-	code.WriteString("    public var detailDescription: String {\n")
-	code.WriteString("        switch self {\n")
-	for _, constant := range constants {
-		caseName := parser.ToSwiftName(constant.Name)
-		caseName = escapeSwiftKeyword(caseName)
-		desc := constant.Desc
-		if desc == "" {
-			desc = constant.Label
-		}
-		code.WriteString(fmt.Sprintf("        case .%s: return \"%s\"\n", caseName, desc))
-	}
-	code.WriteString("        }\n")
-	code.WriteString("    }\n")
 
-	// 生成格式化方法
-	code.WriteString("\n")
-	code.WriteString("    /// 根据语言获取标签\n")
-	code.WriteString("    /// - Parameter lang: 语言代码 (\"zh\", \"en\")\n")
-	code.WriteString("    /// - Returns: 格式化后的标签\n")
-	code.WriteString("    public func format(lang: String = \"en\") -> String {\n")
-	code.WriteString("        switch lang {\n")
-	code.WriteString("        case \"zh\":\n")
-	code.WriteString("            return label\n")
-	code.WriteString("        case \"en\":\n")
-	code.WriteString("            switch self {\n")
-	for _, constant := range constants {
-		caseName := parser.ToSwiftName(constant.Name)
-		caseName = escapeSwiftKeyword(caseName)
-		// 简单的英文转换
-		enLabel := strings.ReplaceAll(constant.Name, "_", " ")
-		enLabel = strings.Title(strings.ToLower(enLabel))
-		code.WriteString(fmt.Sprintf("            case .%s: return \"%s\"\n", caseName, enLabel))
-	}
-	code.WriteString("            }\n")
-	code.WriteString("        default:\n")
-	code.WriteString("            return label\n")
-	code.WriteString("        }\n")
-	code.WriteString("    }\n")
 
 	// 生成从字符串创建的静态方法
 	code.WriteString("\n")
@@ -245,7 +242,7 @@ func (g *SwiftGenerator) generateStructGroup(group *parser.ConstantGroup, projec
 		value := parser.FormatValue(constant.Value, constant.Type, "swift")
 		comment := constant.Label
 		if comment == "" {
-			comment = constant.Desc
+			comment = constant.Label
 		}
 
 		code.WriteString(fmt.Sprintf("    /// %s\n", comment))
@@ -270,8 +267,7 @@ func (g *SwiftGenerator) generateStructGroup(group *parser.ConstantGroup, projec
 	code.WriteString(g.generateIsValid(group))
 	code.WriteString("\n")
 	code.WriteString(g.generateFromString(group))
-	code.WriteString("\n")
-	code.WriteString(g.generateGetDescription(group))
+	
 
 	code.WriteString("}\n")
 
@@ -371,65 +367,24 @@ func (g *SwiftGenerator) generateFormat(group *parser.ConstantGroup) string {
 
 	swiftType := parser.GetSwiftType(group.Constants[0].Type)
 
-	code.WriteString("    /// 根据值和语言格式化标签\n")
-	code.WriteString("    /// - Parameters:\n")
-	code.WriteString("    ///   - value: 常量值\n")
-	code.WriteString(`    ///   - lang: 语言代码 (默认: "zh")`)
-	code.WriteString("\n")
+	code.WriteString("    /// 根据值格式化标签\n")
+	code.WriteString("    /// - Parameter value: 常量值\n")
 	code.WriteString("    /// - Returns: 格式化后的标签\n")
-	code.WriteString(fmt.Sprintf(`    public static func format(_ value: %s, lang: String = "zh") -> String {`, swiftType))
+	code.WriteString(fmt.Sprintf(`    public static func format(_ value: %s) -> String {`, swiftType))
 	code.WriteString("\n")
-	code.WriteString(fmt.Sprintf("        let labels: [String: [%s: String]] = [\n", swiftType))
-
-	// 中文标签
-	code.WriteString(`            "zh": [`)
-	code.WriteString("\n")
+	code.WriteString(fmt.Sprintf("        let labels: [%s: String] = [\n", swiftType))
 	for _, constant := range group.Constants {
 		constName := parser.ToSwiftName(constant.Name)
 		label := constant.Label
 		if label == "" {
 			label = constant.Name
 		}
-		code.WriteString(fmt.Sprintf(`                %s: "%s",`, constName, label))
+		code.WriteString(fmt.Sprintf(`            %s: "%s",`, constName, label))
 		code.WriteString("\n")
 	}
-	code.WriteString("            ],\n")
-
-	// 英文标签
-	code.WriteString(`            "en": [`)
-	code.WriteString("\n")
-	for _, constant := range group.Constants {
-		constName := parser.ToSwiftName(constant.Name)
-		label := strings.ReplaceAll(constant.Name, "_", " ")
-		label = strings.Title(strings.ToLower(label))
-		code.WriteString(fmt.Sprintf(`                %s: "%s",`, constName, label))
-		code.WriteString("\n")
-	}
-	code.WriteString("            ],\n")
-
-	// 日文标签（示例）
-	code.WriteString(`            "ja": [`)
-	code.WriteString("\n")
-	for _, constant := range group.Constants {
-		constName := parser.ToSwiftName(constant.Name)
-		label := constant.Label // 暂时使用中文标签
-		if label == "" {
-			label = constant.Name
-		}
-		code.WriteString(fmt.Sprintf(`                %s: "%s",`, constName, label))
-		code.WriteString("\n")
-	}
-	code.WriteString("            ]\n")
-
 	code.WriteString("        ]\n")
 	code.WriteString("        \n")
-	code.WriteString("        if let langLabels = labels[lang], let label = langLabels[value] {\n")
-	code.WriteString("            return label\n")
-	code.WriteString("        }\n")
-	code.WriteString("        \n")
-	code.WriteString("        // 默认返回英文\n")
-	code.WriteString(`        if let enLabels = labels["en"], let label = enLabels[value] {`)
-	code.WriteString("\n")
+	code.WriteString("        if let label = labels[value] {\n")
 	code.WriteString("            return label\n")
 	code.WriteString("        }\n")
 	code.WriteString("        \n")
@@ -472,36 +427,6 @@ func (g *SwiftGenerator) generateFromString(group *parser.ConstantGroup) string 
 	return code.String()
 }
 
-// generateGetDescription 生成获取描述的方法
-func (g *SwiftGenerator) generateGetDescription(group *parser.ConstantGroup) string {
-	var code strings.Builder
-
-	swiftType := parser.GetSwiftType(group.Constants[0].Type)
-
-	code.WriteString("    /// 获取常量值的详细描述\n")
-	code.WriteString("    /// - Parameter value: 常量值\n")
-	code.WriteString("    /// - Returns: 详细描述\n")
-	code.WriteString(fmt.Sprintf("    public static func getDescription(_ value: %s) -> String {\n", swiftType))
-	code.WriteString(fmt.Sprintf("        let descriptions: [%s: String] = [\n", swiftType))
-
-	for _, constant := range group.Constants {
-		constName := parser.ToSwiftName(constant.Name)
-		desc := constant.Desc
-		if desc == "" {
-			desc = constant.Label
-		}
-		code.WriteString(fmt.Sprintf(`            %s: "%s",`, constName, desc))
-		code.WriteString("\n")
-	}
-
-	code.WriteString("        ]\n")
-	code.WriteString("        \n")
-	code.WriteString(`        return descriptions[value] ?? "未知常量值: \(value)"`)
-	code.WriteString("\n")
-	code.WriteString("    }\n")
-
-	return code.String()
-}
 
 // GenerateIndex Swift不需要生成索引文件
 func (g *SwiftGenerator) GenerateIndex(allConstants []*parser.ConstantsFile) error {

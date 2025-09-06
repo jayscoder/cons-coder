@@ -31,19 +31,53 @@ func (g *PythonGenerator) Generate(constants *parser.ConstantsFile) error {
 	code.WriteString(g.GetFileHeader(constants))
 	code.WriteString("\n")
 
-	// 导入
-	code.WriteString("from typing import List, Dict, Optional, Any\n")
-	code.WriteString("\n\n")
-
-	// 生成每个常量组的类
-	for _, group := range constants.Groups {
-		code.WriteString(g.generateGroupClass(group, constants.Label))
+	if g.Config.Mode == "const" {
+		// const模式 - 生成简单常量
+		for _, group := range constants.Groups {
+			code.WriteString(g.generateConstGroup(group, constants.Label))
+			code.WriteString("\n")
+		}
+	} else {
+		// class模式 - 生成类
+		// 导入
+		code.WriteString("from typing import List, Dict, Optional, Any\n")
 		code.WriteString("\n\n")
+
+		// 生成每个常量组的类
+		for _, group := range constants.Groups {
+			code.WriteString(g.generateGroupClass(group, constants.Label))
+			code.WriteString("\n\n")
+		}
 	}
 
 	// 写入文件
 	outputPath := g.GetOutputFilePath(constants.FileName)
 	return os.WriteFile(outputPath, []byte(code.String()), 0644)
+}
+
+// generateConstGroup 生成const模式的常量组
+func (g *PythonGenerator) generateConstGroup(group *parser.ConstantGroup, projectLabel string) string {
+	var code strings.Builder
+
+	// 生成注释
+	code.WriteString(fmt.Sprintf("# %s %s - %s\n", group.Name, group.Label, projectLabel))
+	
+	// 按字母顺序排序常量
+	constants := make([]*parser.Constant, len(group.Constants))
+	copy(constants, group.Constants)
+	sort.Slice(constants, func(i, j int) bool {
+		return parser.ToPythonName(constants[i].Name) < parser.ToPythonName(constants[j].Name)
+	})
+	
+	// 生成常量定义
+	for _, constant := range constants {
+		constName := fmt.Sprintf("%s_%s", strings.ToUpper(group.Name), strings.ToUpper(constant.Name))
+		value := parser.FormatValue(constant.Value, constant.Type, "python")
+		comment := constant.Label
+		code.WriteString(fmt.Sprintf("%s = %s  # %s\n", constName, value, comment))
+	}
+	
+	return code.String()
 }
 
 // generateGroupClass 生成常量组类
@@ -75,7 +109,7 @@ func (g *PythonGenerator) generateGroupClass(group *parser.ConstantGroup, projec
 		value := parser.FormatValue(constant.Value, constant.Type, "python")
 		comment := constant.Label
 		if comment == "" {
-			comment = constant.Desc
+			comment = constant.Label
 		}
 
 		// 计算对齐空格
@@ -101,8 +135,6 @@ func (g *PythonGenerator) generateGroupClass(group *parser.ConstantGroup, projec
 	code.WriteString(g.generateIsValid(group))
 	code.WriteString("\n")
 	code.WriteString(g.generateFromString(group))
-	code.WriteString("\n")
-	code.WriteString(g.generateGetDescription(group))
 
 	return code.String()
 }
@@ -201,47 +233,27 @@ func (g *PythonGenerator) generateFormatValue(group *parser.ConstantGroup) strin
 	valueType := parser.GetPythonType(group.Constants[0].Type)
 
 	code.WriteString("    @classmethod\n")
-	code.WriteString(fmt.Sprintf("    def format_value(cls, value: %s, lang: str = 'zh') -> str:\n", valueType))
-	code.WriteString(fmt.Sprintf(`        """根据值和语言格式化%s的标签`, group.Label))
+	code.WriteString(fmt.Sprintf("    def format_value(cls, value: %s) -> str:\n", valueType))
+	code.WriteString(fmt.Sprintf(`        """根据值格式化%s的标签`, group.Label))
 	code.WriteString("\n        \n")
 	code.WriteString("        Args:\n")
 	code.WriteString("            value: 常量值\n")
-	code.WriteString("            lang: 语言代码 ('zh', 'en', 'ja')\n")
 	code.WriteString("            \n")
 	code.WriteString("        Returns:\n")
 	code.WriteString("            格式化后的标签，找不到时返回 'Unknown(value)'\n")
 	code.WriteString(`        """`)
 	code.WriteString("\n        labels = {\n")
-
-	// 生成多语言标签映射
-	code.WriteString("            'zh': {\n")
 	for _, constant := range group.Constants {
 		constName := parser.ToPythonName(constant.Name)
-		// value := parser.FormatValue(constant.Value, constant.Type, "python")
 		label := constant.Label
 		if label == "" {
 			label = constant.Name
 		}
-		code.WriteString(fmt.Sprintf("                cls.%s: '%s',\n", constName, label))
+		code.WriteString(fmt.Sprintf("            cls.%s: '%s',\n", constName, label))
 	}
-	code.WriteString("            },\n")
-
-	// 英文标签（简单转换）
-	code.WriteString("            'en': {\n")
-	for _, constant := range group.Constants {
-		constName := parser.ToPythonName(constant.Name)
-		label := strings.ReplaceAll(constant.Name, "_", " ")
-		label = strings.Title(strings.ToLower(label))
-		code.WriteString(fmt.Sprintf("                cls.%s: '%s',\n", constName, label))
-	}
-	code.WriteString("            },\n")
-
 	code.WriteString("        }\n\n")
-	code.WriteString("        if lang in labels and value in labels[lang]:\n")
-	code.WriteString("            return labels[lang][value]\n\n")
-	code.WriteString("        # 默认返回英文，如果英文也没有则返回数值\n")
-	code.WriteString("        if 'en' in labels and value in labels['en']:\n")
-	code.WriteString("            return labels['en'][value]\n\n")
+	code.WriteString("        if value in labels:\n")
+	code.WriteString("            return labels[value]\n\n")
 	code.WriteString("        return f'Unknown({value})'\n")
 
 	return code.String()
@@ -283,31 +295,6 @@ func (g *PythonGenerator) generateFromString(group *parser.ConstantGroup) string
 	return code.String()
 }
 
-// generateGetDescription 生成获取描述的方法
-func (g *PythonGenerator) generateGetDescription(group *parser.ConstantGroup) string {
-	var code strings.Builder
-
-	valueType := parser.GetPythonType(group.Constants[0].Type)
-
-	code.WriteString("    @classmethod\n")
-	code.WriteString(fmt.Sprintf("    def get_description(cls, value: %s) -> str:\n", valueType))
-	code.WriteString(`        """获取常量值的详细描述"""`)
-	code.WriteString("\n        descriptions = {\n")
-
-	for _, constant := range group.Constants {
-		constName := parser.ToPythonName(constant.Name)
-		desc := constant.Desc
-		if desc == "" {
-			desc = constant.Label
-		}
-		code.WriteString(fmt.Sprintf("            cls.%s: '%s',\n", constName, desc))
-	}
-
-	code.WriteString("        }\n")
-	code.WriteString("        return descriptions.get(value, f'未知常量值: {value}')")
-
-	return code.String()
-}
 
 // GenerateIndex 生成Python的__init__.py文件
 func (g *PythonGenerator) GenerateIndex(allConstants []*parser.ConstantsFile) error {

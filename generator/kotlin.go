@@ -32,17 +32,54 @@ func (g *KotlinGenerator) Generate(constants *parser.ConstantsFile) error {
 	code.WriteString(g.GetFileHeader(constants))
 	code.WriteString("\n")
 	
-	// 生成每个常量组
-	for i, group := range constants.Groups {
-		if i > 0 {
-			code.WriteString("\n")
+	if g.Config.Mode == "const" {
+		// const模式 - 生成简单常量
+		for i, group := range constants.Groups {
+			if i > 0 {
+				code.WriteString("\n")
+			}
+			code.WriteString(g.generateConstGroup(group, constants.Label))
 		}
-		code.WriteString(g.generateObject(group, constants.Label))
+	} else {
+		// class模式
+		// 生成每个常量组
+		for i, group := range constants.Groups {
+			if i > 0 {
+				code.WriteString("\n")
+			}
+			code.WriteString(g.generateObject(group, constants.Label))
+		}
 	}
 	
 	// 写入文件
 	outputPath := g.GetOutputFilePath(constants.FileName)
 	return os.WriteFile(outputPath, []byte(code.String()), 0644)
+}
+
+// generateConstGroup 生成const模式的常量组
+func (g *KotlinGenerator) generateConstGroup(group *parser.ConstantGroup, projectLabel string) string {
+	var code strings.Builder
+	
+	// 生成注释
+	code.WriteString(fmt.Sprintf("// %s %s - %s\n", group.Name, group.Label, projectLabel))
+	
+	// 按字母顺序排序常量
+	constants := make([]*parser.Constant, len(group.Constants))
+	copy(constants, group.Constants)
+	sort.Slice(constants, func(i, j int) bool {
+		return parser.ToKotlinConstantName(constants[i].Name) < parser.ToKotlinConstantName(constants[j].Name)
+	})
+	
+	// 生成常量定义
+	for _, constant := range constants {
+		constName := fmt.Sprintf("%s_%s", strings.ToUpper(group.Name), strings.ToUpper(constant.Name))
+		kotlinType := parser.GetKotlinType(constant.Type)
+		value := parser.FormatValue(constant.Value, constant.Type, "kotlin")
+		comment := constant.Label
+		code.WriteString(fmt.Sprintf("const val %s: %s = %s // %s\n", constName, kotlinType, value, comment))
+	}
+	
+	return code.String()
 }
 
 // generateObject 生成常量组对象
@@ -71,7 +108,7 @@ func (g *KotlinGenerator) generateObject(group *parser.ConstantGroup, projectLab
 		value := parser.FormatValue(constant.Value, constant.Type, "kotlin")
 		comment := constant.Label
 		if comment == "" {
-			comment = constant.Desc
+			comment = constant.Label
 		}
 		
 		code.WriteString(fmt.Sprintf("    /** %s */\n", comment))
@@ -91,8 +128,7 @@ func (g *KotlinGenerator) generateObject(group *parser.ConstantGroup, projectLab
 	code.WriteString(g.generateIsValid(group))
 	code.WriteString("\n")
 	code.WriteString(g.generateFromString(group))
-	code.WriteString("\n")
-	code.WriteString(g.generateGetDescription(group))
+	
 	
 	code.WriteString("}\n")
 	
@@ -193,19 +229,13 @@ func (g *KotlinGenerator) generateFormat(group *parser.ConstantGroup) string {
 	kotlinType := parser.GetKotlinType(group.Constants[0].Type)
 	
 	code.WriteString("    /**\n")
-	code.WriteString("     * 根据值和语言格式化标签\n")
+	code.WriteString("     * 根据值格式化标签\n")
 	code.WriteString("     * @param value 常量值\n")
-	code.WriteString(`     * @param lang 语言代码 (默认: "zh")`)
-	code.WriteString("\n")
 	code.WriteString("     * @return 格式化后的标签\n")
 	code.WriteString("     */\n")
-	code.WriteString(fmt.Sprintf(`    fun format(value: %s, lang: String = "zh"): String {`, kotlinType))
+	code.WriteString(fmt.Sprintf(`    fun format(value: %s): String {`, kotlinType))
 	code.WriteString("\n")
 	code.WriteString("        val labels = mapOf(\n")
-	
-	// 中文标签
-	code.WriteString(`            "zh" to mapOf(`)
-	code.WriteString("\n")
 	for i, constant := range group.Constants {
 		if i > 0 {
 			code.WriteString(",\n")
@@ -215,48 +245,11 @@ func (g *KotlinGenerator) generateFormat(group *parser.ConstantGroup) string {
 		if label == "" {
 			label = constant.Name
 		}
-		code.WriteString(fmt.Sprintf(`                %s to "%s"`, constName, label))
+		code.WriteString(fmt.Sprintf(`            %s to "%s"`, constName, label))
 	}
 	code.WriteString(",\n")
-	code.WriteString("            ),\n")
-	
-	// 英文标签
-	code.WriteString(`            "en" to mapOf(`)
-	code.WriteString("\n")
-	for i, constant := range group.Constants {
-		if i > 0 {
-			code.WriteString(",\n")
-		}
-		constName := parser.ToKotlinConstantName(constant.Name)
-		label := strings.ReplaceAll(constant.Name, "_", " ")
-		label = strings.Title(strings.ToLower(label))
-		code.WriteString(fmt.Sprintf(`                %s to "%s"`, constName, label))
-	}
-	code.WriteString(",\n")
-	code.WriteString("            ),\n")
-	
-	// 日文标签（示例）
-	code.WriteString(`            "ja" to mapOf(`)
-	code.WriteString("\n")
-	for i, constant := range group.Constants {
-		if i > 0 {
-			code.WriteString(",\n")
-		}
-		constName := parser.ToKotlinConstantName(constant.Name)
-		label := constant.Label // 暂时使用中文标签
-		if label == "" {
-			label = constant.Name
-		}
-		code.WriteString(fmt.Sprintf(`                %s to "%s"`, constName, label))
-	}
-	code.WriteString(",\n")
-	code.WriteString("            ),\n")
-	
 	code.WriteString("        )\n\n")
-	code.WriteString("        labels[lang]?.get(value)?.let { return it }\n\n")
-	code.WriteString("        // 默认返回英文\n")
-	code.WriteString(`        labels["en"]?.get(value)?.let { return it }`)
-	code.WriteString("\n\n")
+	code.WriteString("        labels[value]?.let { return it }\n\n")
 	code.WriteString(`        return "Unknown($value)"`)
 	code.WriteString("\n")
 	code.WriteString("    }\n")
@@ -300,40 +293,6 @@ func (g *KotlinGenerator) generateFromString(group *parser.ConstantGroup) string
 	return code.String()
 }
 
-// generateGetDescription 生成获取描述的方法
-func (g *KotlinGenerator) generateGetDescription(group *parser.ConstantGroup) string {
-	var code strings.Builder
-	
-	kotlinType := parser.GetKotlinType(group.Constants[0].Type)
-	
-	code.WriteString("    /**\n")
-	code.WriteString("     * 获取常量值的详细描述\n")
-	code.WriteString("     * @param value 常量值\n")
-	code.WriteString("     * @return 详细描述\n")
-	code.WriteString("     */\n")
-	code.WriteString(fmt.Sprintf("    fun getDescription(value: %s): String {\n", kotlinType))
-	code.WriteString("        val descriptions = mapOf(\n")
-	
-	for i, constant := range group.Constants {
-		if i > 0 {
-			code.WriteString(",\n")
-		}
-		constName := parser.ToKotlinConstantName(constant.Name)
-		desc := constant.Desc
-		if desc == "" {
-			desc = constant.Label
-		}
-		code.WriteString(fmt.Sprintf(`            %s to "%s"`, constName, desc))
-	}
-	
-	code.WriteString("\n        )\n")
-	code.WriteString("        \n")
-	code.WriteString(`        return descriptions[value] ?: "未知常量值: $value"`)
-	code.WriteString("\n")
-	code.WriteString("    }\n")
-	
-	return code.String()
-}
 
 // GenerateIndex Kotlin不需要生成索引文件
 func (g *KotlinGenerator) GenerateIndex(allConstants []*parser.ConstantsFile) error {

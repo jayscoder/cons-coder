@@ -31,27 +31,77 @@ func (g *JavaScriptGenerator) Generate(constants *parser.ConstantsFile) error {
 	code.WriteString(g.GetFileHeader(constants))
 	code.WriteString("\n")
 	
-	// 生成每个常量组的类
-	for _, group := range constants.Groups {
-		code.WriteString(g.generateGroupClass(group, constants.Label))
-		code.WriteString("\n")
-	}
-	
-	// 导出
-	code.WriteString("// 导出所有常量类\n")
-	code.WriteString("module.exports = {\n")
-	for i, group := range constants.Groups {
-		if i > 0 {
-			code.WriteString(",\n")
+	if g.Config.Mode == "const" {
+		// const模式 - 生成简单常量
+		for _, group := range constants.Groups {
+			code.WriteString(g.generateConstGroup(group, constants.Label))
+			code.WriteString("\n")
 		}
-		className := parser.ToJavaName(group.Name)
-		code.WriteString(fmt.Sprintf("  %s", className))
+		
+		// 导出所有常量
+		code.WriteString("// 导出所有常量\n")
+		code.WriteString("module.exports = {\n")
+		for _, group := range constants.Groups {
+			constants := make([]*parser.Constant, len(group.Constants))
+			copy(constants, group.Constants)
+			sort.Slice(constants, func(i, j int) bool {
+				return parser.ToJavaScriptName(constants[i].Name) < parser.ToJavaScriptName(constants[j].Name)
+			})
+			for _, constant := range constants {
+				constName := fmt.Sprintf("%s_%s", strings.ToUpper(group.Name), strings.ToUpper(constant.Name))
+				code.WriteString(fmt.Sprintf("  %s,\n", constName))
+			}
+		}
+		code.WriteString("};\n")
+	} else {
+		// class模式
+		// 生成每个常量组的类
+		for _, group := range constants.Groups {
+			code.WriteString(g.generateGroupClass(group, constants.Label))
+			code.WriteString("\n")
+		}
+		
+		// 导出
+		code.WriteString("// 导出所有常量类\n")
+		code.WriteString("module.exports = {\n")
+		for i, group := range constants.Groups {
+			if i > 0 {
+				code.WriteString(",\n")
+			}
+			className := parser.ToJavaName(group.Name)
+			code.WriteString(fmt.Sprintf("  %s", className))
+		}
+		code.WriteString("\n};\n")
 	}
-	code.WriteString("\n};\n")
 	
 	// 写入文件
 	outputPath := g.GetOutputFilePath(constants.FileName)
 	return os.WriteFile(outputPath, []byte(code.String()), 0644)
+}
+
+// generateConstGroup 生成const模式的常量组
+func (g *JavaScriptGenerator) generateConstGroup(group *parser.ConstantGroup, projectLabel string) string {
+	var code strings.Builder
+	
+	// 生成注释
+	code.WriteString(fmt.Sprintf("// %s %s - %s\n", group.Name, group.Label, projectLabel))
+	
+	// 按字母顺序排序常量
+	constants := make([]*parser.Constant, len(group.Constants))
+	copy(constants, group.Constants)
+	sort.Slice(constants, func(i, j int) bool {
+		return parser.ToJavaScriptName(constants[i].Name) < parser.ToJavaScriptName(constants[j].Name)
+	})
+	
+	// 生成常量定义
+	for _, constant := range constants {
+		constName := fmt.Sprintf("%s_%s", strings.ToUpper(group.Name), strings.ToUpper(constant.Name))
+		value := parser.FormatValue(constant.Value, constant.Type, "javascript")
+		comment := constant.Label
+		code.WriteString(fmt.Sprintf("const %s = %s; // %s\n", constName, value, comment))
+	}
+	
+	return code.String()
 }
 
 // generateGroupClass 生成常量组类
@@ -82,7 +132,7 @@ func (g *JavaScriptGenerator) generateGroupClass(group *parser.ConstantGroup, pr
 		value := parser.FormatValue(constant.Value, constant.Type, "javascript")
 		comment := constant.Label
 		if comment == "" {
-			comment = constant.Desc
+			comment = constant.Label
 		}
 		
 		code.WriteString(fmt.Sprintf("    /** %s */\n", comment))
@@ -110,8 +160,7 @@ func (g *JavaScriptGenerator) generateGroupClass(group *parser.ConstantGroup, pr
 	code.WriteString(g.generateIsValid(group))
 	code.WriteString("\n")
 	code.WriteString(g.generateFromString(group))
-	code.WriteString("\n")
-	code.WriteString(g.generateGetDescription(group))
+	
 	
 	code.WriteString("}\n")
 	
@@ -212,57 +261,23 @@ func (g *JavaScriptGenerator) generateFormatValue(group *parser.ConstantGroup) s
 	jsType := parser.GetJavaScriptType(group.Constants[0].Type)
 	
 	code.WriteString("  /**\n")
-	code.WriteString(fmt.Sprintf("   * 根据值和语言格式化%s的标签\n", group.Label))
+	code.WriteString(fmt.Sprintf("   * 根据值格式化%s的标签\n", group.Label))
 	code.WriteString(fmt.Sprintf("   * @param {%s} value - 常量值\n", jsType))
-	code.WriteString("   * @param {string} [lang='zh'] - 语言代码 ('zh', 'en', 'ja')\n")
 	code.WriteString("   * @returns {string} 格式化后的标签，找不到时返回 'Unknown(value)'\n")
 	code.WriteString("   */\n")
-	code.WriteString("  static formatValue(value, lang = 'zh') {\n")
+	code.WriteString("  static formatValue(value) {\n")
 	code.WriteString("    const labels = {\n")
-	
-	// 中文标签
-	code.WriteString("      zh: {\n")
 	for _, constant := range group.Constants {
 		constName := parser.ToJavaScriptName(constant.Name)
 		label := constant.Label
 		if label == "" {
 			label = constant.Name
 		}
-		code.WriteString(fmt.Sprintf("        [this.%s]: '%s',\n", constName, label))
+		code.WriteString(fmt.Sprintf("      [this.%s]: '%s',\n", constName, label))
 	}
-	code.WriteString("      },\n")
-	
-	// 英文标签
-	code.WriteString("      en: {\n")
-	for _, constant := range group.Constants {
-		constName := parser.ToJavaScriptName(constant.Name)
-		label := strings.ReplaceAll(constant.Name, "_", " ")
-		label = strings.Title(strings.ToLower(label))
-		code.WriteString(fmt.Sprintf("        [this.%s]: '%s',\n", constName, label))
-	}
-	code.WriteString("      },\n")
-	
-	// 日文标签（示例）
-	code.WriteString("      ja: {\n")
-	for _, constant := range group.Constants {
-		constName := parser.ToJavaScriptName(constant.Name)
-		label := constant.Label // 暂时使用中文标签
-		if label == "" {
-			label = constant.Name
-		}
-		code.WriteString(fmt.Sprintf("        [this.%s]: '%s',\n", constName, label))
-	}
-	code.WriteString("      },\n")
-	
 	code.WriteString("    };\n\n")
-	code.WriteString("    const langLabels = labels[lang];\n")
-	code.WriteString("    if (langLabels && langLabels[value] !== undefined) {\n")
-	code.WriteString("      return langLabels[value];\n")
-	code.WriteString("    }\n\n")
-	code.WriteString("    // 默认返回英文\n")
-	code.WriteString("    const enLabels = labels.en;\n")
-	code.WriteString("    if (enLabels && enLabels[value] !== undefined) {\n")
-	code.WriteString("      return enLabels[value];\n")
+	code.WriteString("    if (labels[value] !== undefined) {\n")
+	code.WriteString("      return labels[value];\n")
 	code.WriteString("    }\n\n")
 	code.WriteString("    return `Unknown(${value})`;\n")
 	code.WriteString("  }\n")
@@ -307,35 +322,6 @@ func (g *JavaScriptGenerator) generateFromString(group *parser.ConstantGroup) st
 	return code.String()
 }
 
-// generateGetDescription 生成获取描述的方法
-func (g *JavaScriptGenerator) generateGetDescription(group *parser.ConstantGroup) string {
-	var code strings.Builder
-	
-	jsType := parser.GetJavaScriptType(group.Constants[0].Type)
-	
-	code.WriteString("  /**\n")
-	code.WriteString("   * 获取常量值的详细描述\n")
-	code.WriteString(fmt.Sprintf("   * @param {%s} value - 常量值\n", jsType))
-	code.WriteString("   * @returns {string} 详细描述\n")
-	code.WriteString("   */\n")
-	code.WriteString("  static getDescription(value) {\n")
-	code.WriteString("    const descriptions = {\n")
-	
-	for _, constant := range group.Constants {
-		constName := parser.ToJavaScriptName(constant.Name)
-		desc := constant.Desc
-		if desc == "" {
-			desc = constant.Label
-		}
-		code.WriteString(fmt.Sprintf("      [this.%s]: '%s',\n", constName, desc))
-	}
-	
-	code.WriteString("    };\n\n")
-	code.WriteString("    return descriptions[value] || `未知常量值: ${value}`;\n")
-	code.WriteString("  }\n")
-	
-	return code.String()
-}
 
 // GenerateIndex 生成JavaScript的index.js文件
 func (g *JavaScriptGenerator) GenerateIndex(allConstants []*parser.ConstantsFile) error {

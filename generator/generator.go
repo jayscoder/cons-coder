@@ -11,6 +11,7 @@ import (
 // Config 生成器配置
 type Config struct {
 	Language      string // 目标语言
+	Mode          string // 生成模式 (class/const)
 	OutputDir     string // 输出目录
 	PackageName   string // 包名
 	HeaderComment string // 头部注释
